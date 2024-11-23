@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Геолокація на карті</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-3SZF3KMXJH"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'G-3SZF3KMXJH');
+</script>
+    <style>
+        :root {
+            --bg-color: #f7f9fc;
+            --text-color: #ff00ff;
+            --header-bg: #2c3e50;
+            --button-bg: #e74c3c;
+            --button-hover-bg: #c0392b;
+            --footer-bg: #34495e;
+        }
+
+        body {
+            font-family: 'Roboto', sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+        }
+
+        header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background-color: var(--header-bg);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            z-index: 1000;
+        }
+
+        .container {
+            flex: 1;
+            padding: 140px 40px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            color: white;
+            background-color: var(--button-bg);
+            border-radius: 5px;
+            margin: 10px;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--button-hover-bg);
+            transform: scale(1.05);
+        }
+
+        #map {
+            height: 400px;
+            width: 100%;
+            margin-top: 20px;
+            border-radius: 10px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        #themeSwitcher {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1001;
+        }
+
+        footer {
+            background-color: var(--footer-bg);
+            color: white;
+            text-align: center;
+            padding: 10px;
+            margin-top: auto;
+        }
+
+        /* Стилі для кнопки перекладу */
+        #translateBtn {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1 id="title">Карта світу</h1>
+        <p id="description">Знайдіть своє місце на карті</p>
+    </header>
+
+    <div class="container">
+        <form id="searchForm">
+            <input type="text" id="locationInput" placeholder="Введіть місце">
+            <button type="submit" id="findPlaceBtn">Знайти місце</button>
+            <!-- Кнопка для перекладу -->
+            <button type="button" id="translateBtn">Перекласти</button>
+        </form>
+        <div id="map"></div>
+    </div>
+
+    <!-- Кнопка для зміни теми -->
+    <button id="themeSwitcher">Змінити тему</button>
+
+    <footer>
+        <p>&copy; 2024 Геолокація на карті. Всі права захищені.</p>
+    </footer>
+
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            let currentThemeIndex = 0;
+            let isUkrainian = true; // Перемикач мови
+
+            const themes = [
+                { '--bg-color': '#f7f9fc', '--text-color': '#34495e', '--header-bg': '#2c3e50', '--button-bg': '#e74c3c', '--button-hover-bg': '#c0392b', '--footer-bg': '#34495e' },
+                { '--bg-color': '#f0fff4', '--text-color': '#2f4f4f', '--header-bg': '#228b22', '--button-bg': '#32cd32', '--button-hover-bg': '#2e8b57', '--footer-bg': '#2f4f4f' },
+                { '--bg-color': '#fff0f0', '--text-color': '#8b0000', '--header-bg': '#b22222', '--button-bg': '#ff4500', '--button-hover-bg': '#cd5c5c', '--footer-bg': '#8b0000' },
+                { '--bg-color': '#f0f8ff', '--text-color': '#4682b4', '--header-bg': '#1e90ff', '--button-bg': '#4169e1', '--button-hover-bg': '#4682b4', '--footer-bg': '#1e90ff' },
+                { '--bg-color': '#fffacd', '--text-color': '#8b4513', '--header-bg': '#ffd700', '--button-bg': '#ffcc00', '--button-hover-bg': '#daa520', '--footer-bg': '#8b4513' },
+                { '--bg-color': '#2f2f2f', '--text-color': '#ffffff', '--header-bg': '#1c1c1c', '--button-bg': '#555555', '--button-hover-bg': '#777777', '--footer-bg': '#1c1c1c' }
+            ];
+
+            function applyTheme(theme) {
+                for (const property in theme) {
+                    document.documentElement.style.setProperty(property, theme[property]);
+                }
+            }
+
+            document.getElementById('themeSwitcher').addEventListener('click', function () {
+                currentThemeIndex = (currentThemeIndex + 1) % themes.length;
+                applyTheme(themes[currentThemeIndex]);
+            });
+
+            let map = L.map('map').setView([0, 0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            
+            let geocoder = L.Control.Geocoder.nominatim();
+
+            document.getElementById('findPlaceBtn').addEventListener('click', function (event) {
+                event.preventDefault();
+                const location = document.getElementById('locationInput').value;
+                geocoder.geocode(location, function(results) {
+                    if (results.length > 0) {
+                        const latLon = results[0].center;
+                        map.setView(latLon, 13);
+                        L.marker(latLon).addTo(map)
+                            .bindPopup(results[0].name)
+                            .openPopup();
+                    } else {
+                        alert('Місце не знайдено');
+                    }
+                });
+            });
+
+            document.getElementById('translateBtn').addEventListener('click', function() {
+                translatePage();
+            });
+
+            function translatePage() {
+                document.getElementById('title').textContent = isUkrainian ? 'World Map' : 'Карта світу';
+                document.getElementById('description').textContent = isUkrainian ? 'Find your place on the map' : 'Знайдіть своє місце на карті';
+                document.getElementById('locationInput').placeholder = isUkrainian ? 'Enter a location' : 'Введіть місце';
+                document.getElementById('findPlaceBtn').textContent = isUkrainian ? 'Find Location' : 'Знайти місце';
+                document.getElementById('translateBtn').textContent = isUkrainian ? 'Translate' : 'Перекласти';
+                isUkrainian = !isUkrainian;
+            }
+        });
+    </script>
+</body>
+</html>
+ 
